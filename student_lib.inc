@@ -4,16 +4,30 @@
 ;; The author hereby grant everyone the right to use this
 ;; file for any purpose, in any manner, in it's original or
 ;; modified form.
-;;														V 1.0
+;;											V 2.0 Beta
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Terminate the program with the specified code.
 ; Arguments:	%1 - exit code.
 
-%macro EXIT 1  
-	mov		rax, 1	; Set system call to 'exit'.
-	mov		rbx, %1	; Specify exit code.
-	int		80h		; Initialize program interrupt.
+%macro EXIT 1
+
+	%ifdef x86_64
+		mov	rax, 1	; Set system call to 'exit'.
+		mov	rbx, %1	; Specify exit code.
+	
+	%elifdef i386
+		mov	eax, 1	; Set system call to 'exit'.
+		mov	ebx, %1	; Specify exit code.
+	%else
+		%error Please define architecture: x86_64, i386.
+	%endif
+
+	%ifdef Linux
+		int	80h		; Initialize program interrupt.
+	%else 
+		%error Please define Operation System: Linux.
+	%endif
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -45,8 +59,10 @@
 ;				%2 - (optional) the length of the string.
 
 %macro PRINT 1-2
-		SAVE rax, rbx, rcx, rdx		
 
+	%ifdef x86_64
+		SAVE rax, rbx, rcx, rdx		
+		
 		mov	rcx, %1		; Specify the string address.
 		mov rdx, %0		; Get the number of arguments.
 		cmp rdx, 2		; Check for the presence of the second argument.
@@ -67,9 +83,44 @@
 
 %%end0:	mov	rax, 4		; Set system call to 'write'.
 		mov	rbx, 1		; Set output to STDOUT.
-		int	80h			; Initialize program interrupt.
 
+	%elifdef i386
+		SAVE eax, ebx, ecx, edx		
+		
+		mov	ecx, %1		; Specify the string address.
+		mov edx, %0		; Get the number of arguments.
+		cmp edx, 2		; Check for the presence of the second argument.
+		je	%%second_is_exist	; Skip string character count. 
+		mov	edx, ecx	; Copy the string address to count its characters. 
+
+%%lp0:	cmp [edx], byte 0	; Is this the end of the string?
+		je short %%p0		; Yes -> Fix the number of characters.
+		inc edx				; No  -> Continue counting.
+		jmp short %%lp0
+
+%%p0:	sub edx, ecx	; The string length is the address difference.   
+		jmp short %%end0
+
+%%second_is_exist:	
+		%rotate 1		; Shift arguments to the left.
+		mov	edx, %1		; The length of the string from the second argument.
+
+%%end0:	mov	eax, 4		; Set system call to 'write'.
+		mov	ebx, 1		; Set output to STDOUT.
+
+	%endif
+
+	%ifdef Linux
+		int	80h			; Initialize program interrupt.
+	%else
+		%error Please define Operation System: Linux.
+	%endif
+
+	%ifdef x86_64
 		RESTORE rdx, rcx, rbx, rax
+	%elifdef i386
+		RESTORE edx, ecx, ebx, eax
+	%endif
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -92,16 +143,35 @@
 ; Arguments:	%1 - the area of memory to store the input;
 ;				%2 - the number of bytes to read.
 %macro INPUT 2
+	%ifdef x86_64
 		SAVE rax, rbx, rcx, rdx
 
 		mov rax, 3		; Set system call to 'read'.
 		mov rbx, 0		; Get data from STDIN.
 		mov rcx, %1		; Set the address of the memory area to be written.
 		mov rdx, %2		; Set number of bytes to read.
-		int 80h			; Initialize program interrupt.
-		mov [rcx+rax-1], byte 0	; Close the string with a null byte.
+	%elifdef i386
+		SAVE eax, ebx, ecx, edx
 
+		mov eax, 3		; Set system call to 'read'.
+		mov ebx, 0		; Get data from STDIN.
+		mov ecx, %1		; Set the address of the memory area to be written.
+		mov edx, %2		; Set number of bytes to read.
+	%endif
+
+	%ifdef Linux
+		int 80h			; Initialize program interrupt.
+	%else
+		%error Please define Operation System: Linux.
+	%endif
+
+	%ifdef x86_64
+		mov [rcx+rax-1], byte 0	; Close the string with a null byte.
 		RESTORE rdx, rcx, rbx, rax
+	%elifdef i386
+		mov [ecx+eax-1], byte 0	; Close the string with a null byte.
+		RESTORE edx, ecx, ebx, eax
+	%endif
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -110,6 +180,7 @@
 ; Arguments:	%1 - the area of memory to store the result;
 
 %macro ITOS 1
+	%ifdef x86_64
 		SAVE rcx, rsi, rdx, rbx
 				
 		mov rsi, %1		; Get the result memory area.
@@ -139,6 +210,37 @@
 		mov [rsi], byte 0	; Close string with null byte (\0)
 %%end1:
 		RESTORE	rbx, rdx, rsi, rcx
+	%elifdef i386
+		SAVE ecx, esi, edx, ebx
+				
+		mov esi, %1		; Get the result memory area.
+		xor ecx, ecx	; Clean the counter.
+		
+		cmp eax, 0		; It is a negative integer?
+		jge %%lp1		; No -> Go to the converting.
+		mov [esi], byte '-' ; Yes -> Add negative sign to string and
+		neg eax			; change integer sign to positive.
+		inc esi			; Skip first character in string.
+	
+%%lp1:	test eax, eax	; Check dividend for zero.
+		jz %%p1			; Zero -> go to make the string.
+		xor edx, edx	; Else -> go to the next digit.	
+		mov ebx, 10		; Update the divisor.
+		div ebx			; Divide by 10 and convert the
+		add edx, '0'	; digit to appropriate ASCII code.
+		push edx		; Push reminder to the top of stack.
+		inc ecx			; Increase counter.
+		jmp short %%lp1
+
+%%p1:	jecxz %%end1	; End converting if there's nothing to convert.
+%%lp2:	pop edx			; Else get each character from stack
+		mov [esi], edx	; and put it to the next string area.
+		inc esi			
+		loop %%lp2
+		mov [esi], byte 0	; Close string with null byte (\0)
+%%end1:
+		RESTORE	ebx, edx, esi, ecx
+	%endif
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -147,6 +249,7 @@
 ; Arguments:	%1 - the area of memory with the input string;
 
 %macro STOI 1	
+	%ifdef x86_64
 		SAVE rbx, rcx, rdx
 
 		mov rbx, 1		; Sign flag.
@@ -171,5 +274,33 @@
 %%end3:	imul rax, rbx	; Set the sign.
 		
 		RESTORE rdx, rcx, rbx
+	%elifdef i386
+		SAVE ebx, ecx, edx
+
+		mov ebx, 1		; Sign flag.
+		xor eax,eax		; Clean initial area.
+		mov edx, %1		; Get source string address.
+	
+		movzx ecx, byte [edx]
+		cmp ecx, '-'	; Is it a negative sign?
+		jne	%%lp3		; No  -> Skip setting flag. 
+		mov ebx, -1		; Yes -> Set a sign flag and
+		inc edx			; skip first character in the string.
+
+%%lp3:	movzx ecx, byte [edx]   ; Get the current character.
+		test ecx, ecx   ; Is it the end of the string?
+		je %%end3		; Yes -> Finish converting.
+		sub ecx, '0'	; No  -> Convert ASCII code to decimal.
+		imul eax, 10    ; Multiply total by 10.
+		add eax, ecx    ; Add current digit to total.
+		inc edx         ; Get the address of the next character.
+		jmp %%lp3
+
+%%end3:	imul eax, ebx	; Set the sign.
+		RESTORE edx, ecx, ebx
+	%endif
 %endmacro
 ;; Use string commands to optimize code.
+;; Write system call macro
+;; Adaptive registers
+;; Memory usage optimizations
