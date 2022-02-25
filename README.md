@@ -16,7 +16,7 @@ To import it into the project, type `%include "student_lib.inc"` before calling 
 
 Starting with version 2.0, you must specify the operating system and processor architecture. To do this, just add flags when compiling, for example, for Linux OS (i386): 
 ```
-$ nasm -f elf64 hello.asm -dLinux -di386
+$ nasm -f elf32 hello.asm -dLinux -di386
 ```
 or add the following lines to your .asm file:
 ```
