@@ -1,4 +1,4 @@
-;; File student_lib.inc for Linux OS (x86_64 arch).
+;; File student_lib.inc for Linux OS.
 ;; Simple set of NASM macros for NASM assembler.
 ;; made by (c) Khasanov Islam (Khasanov41), SUSU student, in 2022.
 ;; The author hereby grant everyone the right to use this
@@ -7,14 +7,7 @@
 ;;
 ;; GitHub: https://github.com/Khasanov41/student_lib.inc.git 
 ;;
-;;											V 2.1 Beta
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Architecture compatibility check.
-
-%ifndef Linux 
-	%error Please define Operation System: Linux.
-%endif
+;;							V 2.1 Beta
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Terminate the program with the specified code.
