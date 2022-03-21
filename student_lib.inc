@@ -4,6 +4,9 @@
 ;; The author hereby grant everyone the right to use this
 ;; file for any purpose, in any manner, in it's original or
 ;; modified form.
+;;
+;; GitHub: https://github.com/Khasanov41/student_lib.inc.git 
+;;
 ;;											V 2.1 Beta
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
