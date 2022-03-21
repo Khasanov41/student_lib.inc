@@ -4,7 +4,14 @@
 ;; The author hereby grant everyone the right to use this
 ;; file for any purpose, in any manner, in it's original or
 ;; modified form.
-;;											V 2.0 Beta
+;;											V 2.1 Beta
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Architecture compatibility check.
+
+%ifndef Linux 
+	%error Please define Operation System: Linux.
+%endif
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Terminate the program with the specified code.
@@ -13,21 +20,18 @@
 %macro EXIT 1
 
 	%ifdef x86_64
-		mov	rax, 1	; Set system call to 'exit'.
-		mov	rbx, %1	; Specify exit code.
-	
+		mov	rax, 60	; System call number (sys_exit).
+		mov	rdi, %1	; Specify exit code.
+		syscall		; Initialize program interrupt.
+
 	%elifdef i386
-		mov	eax, 1	; Set system call to 'exit'.
+		mov	eax, 1	; System call number (sys_exit).
 		mov	ebx, %1	; Specify exit code.
+		int	80h		; Initialize program interrupt.
 	%else
 		%error Please define architecture: x86_64, i386.
 	%endif
 
-	%ifdef Linux
-		int	80h		; Initialize program interrupt.
-	%else 
-		%error Please define Operation System: Linux.
-	%endif
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -61,28 +65,30 @@
 %macro PRINT 1-2
 
 	%ifdef x86_64
-		SAVE rax, rbx, rcx, rdx		
+		SAVE rax, rdi, rsi, rdx		
 		
-		mov	rcx, %1		; Specify the string address.
+		mov	rsi, %1		; Specify the string address.
 		mov rdx, %0		; Get the number of arguments.
 		cmp rdx, 2		; Check for the presence of the second argument.
 		je	%%second_is_exist	; Skip string character count. 
-		mov	rdx, rcx	; Copy the string address to count its characters. 
+		mov	rdx, rsi	; Copy the string address to count its characters. 
 
 %%lp0:	cmp [rdx], byte 0	; Is this the end of the string?
 		je short %%p0		; Yes -> Fix the number of characters.
 		inc rdx				; No  -> Continue counting.
 		jmp short %%lp0
 
-%%p0:	sub rdx, rcx	; The string length is the address difference.   
+%%p0:	sub rdx, rsi	; The string length is the address difference.   
 		jmp short %%end0
 
 %%second_is_exist:	
 		%rotate 1		; Shift arguments to the left.
 		mov	rdx, %1		; The length of the string from the second argument.
 
-%%end0:	mov	rax, 4		; Set system call to 'write'.
-		mov	rbx, 1		; Set output to STDOUT.
+%%end0:	mov	rax, 1		; System call number (sys_write).
+		mov	rdi, 1		; File descriptor (stdout).
+		syscall
+		RESTORE rdx, rsi, rdi, rax
 
 	%elifdef i386
 		SAVE eax, ebx, ecx, edx		
@@ -105,22 +111,12 @@
 		%rotate 1		; Shift arguments to the left.
 		mov	edx, %1		; The length of the string from the second argument.
 
-%%end0:	mov	eax, 4		; Set system call to 'write'.
-		mov	ebx, 1		; Set output to STDOUT.
-
-	%endif
-
-	%ifdef Linux
-		int	80h			; Initialize program interrupt.
-	%else
-		%error Please define Operation System: Linux.
-	%endif
-
-	%ifdef x86_64
-		RESTORE rdx, rcx, rbx, rax
-	%elifdef i386
+%%end0:	mov	eax, 4		; System call number (sys_write).
+		mov	ebx, 1		; File descriptor (stdout).
+		int 80h			; Initialize program interrupt.
 		RESTORE edx, ecx, ebx, eax
 	%endif
+
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -144,34 +140,28 @@
 ;				%2 - the number of bytes to read.
 %macro INPUT 2
 	%ifdef x86_64
-		SAVE rax, rbx, rcx, rdx
+		SAVE rax, rdi, rsi, rdx
 
-		mov rax, 3		; Set system call to 'read'.
-		mov rbx, 0		; Get data from STDIN.
-		mov rcx, %1		; Set the address of the memory area to be written.
+		mov rax, 0		; System call number (sys_read).
+		mov rdi, 0		; File descriptor (stdin).
+		mov rsi, %1		; Set the address of the memory area to be written.
 		mov rdx, %2		; Set number of bytes to read.
+		syscall			; Initialize program interrupt.
+		mov [rsi+rax-1], byte 0	; Close the string with a null byte.
+		RESTORE rdx, rsi, rdi, rax
+	
 	%elifdef i386
 		SAVE eax, ebx, ecx, edx
 
-		mov eax, 3		; Set system call to 'read'.
-		mov ebx, 0		; Get data from STDIN.
+		mov eax, 3		; System call number (sys_read).
+		mov ebx, 0		; File descriptor (stdin).
 		mov ecx, %1		; Set the address of the memory area to be written.
 		mov edx, %2		; Set number of bytes to read.
-	%endif
-
-	%ifdef Linux
 		int 80h			; Initialize program interrupt.
-	%else
-		%error Please define Operation System: Linux.
-	%endif
-
-	%ifdef x86_64
-		mov [rcx+rax-1], byte 0	; Close the string with a null byte.
-		RESTORE rdx, rcx, rbx, rax
-	%elifdef i386
 		mov [ecx+eax-1], byte 0	; Close the string with a null byte.
 		RESTORE edx, ecx, ebx, eax
 	%endif
+
 %endmacro
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
