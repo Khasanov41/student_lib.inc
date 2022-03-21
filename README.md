@@ -18,7 +18,7 @@ Starting with version 2.0, you must specify the operating system and processor a
 ```
 $ nasm -f elf32 hello.asm -dLinux -di386
 ```
-or add the following lines to your .asm file:
+or add the following lines to your .asm file before `%include "student_lib.inc"`:
 ```
 %define Linux
 %define i386
